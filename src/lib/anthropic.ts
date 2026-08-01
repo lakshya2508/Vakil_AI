@@ -8,11 +8,10 @@ import { Attachment, AIModel } from "@/types";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-3.5-flash",
   "gemini-3.6-flash",
+  "gemini-3.5-flash",
   "gemini-flash-latest",
+  "gemini-2.0-flash",
 ];
 
 if (!GEMINI_API_KEY) {
@@ -86,49 +85,42 @@ async function geminiChat(
   let lastError: Error | null = null;
 
   for (const model of GEMINI_MODELS) {
-    // Attempt request up to 2 times per model
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout per attempt
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout per model
 
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": GEMINI_API_KEY,
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": GEMINI_API_KEY,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
 
-        clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          const errorBody = await response.text().catch(() => "unknown");
-          throw new Error(`Gemini API (${model}) returned ${response.status}: ${errorBody}`);
-        }
-
-        const data = await response.json();
-        let text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) {
-          throw new Error(`Empty response from Gemini model ${model}`);
-        }
-
-        // Strip raw markdown header clutter
-        text = text.replace(/^#{1,6}\s*/gm, "");
-
-        return text;
-      } catch (err: unknown) {
-        lastError = err instanceof Error ? err : new Error(String(err));
-        console.warn(`[lib/gemini] Model ${model} (attempt ${attempt}) failed:`, lastError.message);
-        // Short delay before retry
-        if (attempt < 2) {
-          await new Promise((r) => setTimeout(r, 400));
-        }
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => "unknown");
+        throw new Error(`Gemini API (${model}) returned ${response.status}: ${errorBody}`);
       }
+
+      const data = await response.json();
+      let text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) {
+        throw new Error(`Empty response from Gemini model ${model}`);
+      }
+
+      // Strip raw markdown header clutter
+      text = text.replace(/^#{1,6}\s*/gm, "");
+
+      return text;
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[lib/gemini] Model ${model} failed:`, lastError.message);
     }
   }
 
