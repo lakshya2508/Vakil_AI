@@ -78,7 +78,7 @@ export const COMPLIANCE_BADGES = [
 // ── Document templates ─────────────────────────────────
 export const DOC_TEMPLATES: DocTemplate[] = [
   { id: "nda",    icon: Icons.docs,    category: "Agreements", title: "Non-Disclosure Agreement",    desc: "Mutual or one-way NDA for business confidentiality",    fields: ["Party A", "Party B", "Duration", "Jurisdiction"] },
-  { id: "emp",    icon: Icons.users,   category: "Employment", title: "Employment Agreement",         desc: "Comprehensive offer letter and employment contract",    fields: ["Employer", "Employee", "Designation", "Salary", "Start Date"] },
+  { id: "emp",    icon: Icons.users,   category: "Employment", title: "Employment Offer Letter & Contract", desc: "Official corporate offer letter with comprehensive employment terms & conditions", fields: ["Company Name", "Candidate Name", "Designation", "Annual CTC (INR)", "Joining Date & Location", "Probation Period", "Notice Period"] },
   { id: "mou",    icon: Icons.scale,   category: "Agreements", title: "Memorandum of Understanding", desc: "MOU between two or more parties for collaboration",     fields: ["Party A", "Party B", "Purpose", "Duration"] },
   { id: "rent",   icon: Icons.book,    category: "Property",   title: "Rent Agreement",              desc: "Residential or commercial lease deed",                  fields: ["Landlord", "Tenant", "Property Address", "Rent", "Tenure"] },
   { id: "sale",   icon: Icons.zap,     category: "Property",   title: "Sale Deed",                   desc: "Property transfer deed under Transfer of Property Act", fields: ["Seller", "Buyer", "Property Details", "Consideration"] },

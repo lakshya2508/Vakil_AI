@@ -28,8 +28,37 @@ export default function DocumentsSection() {
     setLoading(true);
     setGenerated(null);
     try {
-      const fieldsSummary = selected.fields.map((f) => `${f}: ${formData[f] || "[not provided]"}`).join(", ");
-      const prompt = `Draft a professional ${selected.title} for Indian jurisdiction. Details: ${fieldsSummary}. Include all standard clauses, governing law as India, recitals, representations, and warranties. Format as a formal legal deed.`;
+      const fieldsSummary = selected.fields
+        .map((f) => `${f}: ${formData[f] || "[Standard Industry Norms]"}`)
+        .join("\n");
+
+      let prompt = "";
+      if (selected.category === "Employment" || selected.id === "emp") {
+        prompt = `Draft an authoritative, comprehensive OFFICIAL CORPORATE EMPLOYMENT OFFER LETTER & CONTRACT under Indian Employment & Labour Laws.
+
+Input Details:
+${fieldsSummary}
+
+STRUCTURAL FORMATTING MANDATES:
+1. OFFICIAL LETTERHEAD HEADER: Reference No., Date of Issue, Employer Company Name & Registered Address, Candidate Name & Full Address.
+2. SALUTATION & APPOINTMENT: Formal greeting ("Dear [Candidate Name],"), official appointment offer statement.
+3. SECTION I. DESIGNATION, LOCATION & COMMENCEMENT: Official job title, reporting manager, work location, joining date.
+4. SECTION II. COMPENSATION & STATUTORY BENEFITS: Annual CTC, monthly gross, statutory contributions (Provident Fund, ESIC, Gratuity, TDS under Income Tax Act).
+5. SECTION III. PROBATIONARY PERIOD & CONFIRMATION: Probation duration, evaluation metrics, confirmation procedure.
+6. SECTION IV. COMPANY TERMS & CONDITIONS OF EMPLOYMENT:
+   - Working Hours & Attendance Policy
+   - Confidential Information, Non-Disclosure & Intellectual Property Assignment
+   - Non-Compete & Non-Solicitation Restrictions
+   - Code of Conduct & Dual Employment (Moonlighting) Ban
+   - Background Verification & Integrity Warranties
+7. SECTION V. TERMINATION OF EMPLOYMENT & NOTICE PERIOD: Notice period requirement by either party, immediate termination for cause/misconduct, handover obligations.
+8. SECTION VI. GOVERNING LAW & JURISDICTION: Governed by the laws of India, exclusive jurisdiction of competent courts.
+9. SECTION VII. ACCEPTANCE & EXECUTION BLOCK: Formal candidate acceptance statement, signature line for Candidate with Date, signature line for Authorized HR/Director for Company.
+
+DO NOT use raw markdown header hashes like '###'. Use clear bold uppercase section titles. Draft with extreme legal precision and professional clarity.`;
+      } else {
+        prompt = `Draft a professional ${selected.title} for Indian jurisdiction. Details:\n${fieldsSummary}\nInclude all standard legal clauses, governing law as India, recitals, representations, and warranties. Format as a formal legal deed without raw markdown hashes.`;
+      }
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -69,7 +98,7 @@ export default function DocumentsSection() {
     if (file) {
       const reader = new FileReader();
       reader.onload = (evt) => {
-        setContractText(evt.target?.result as string || "");
+        setContractText((evt.target?.result as string) || "");
       };
       reader.readAsText(file);
     }
@@ -77,12 +106,35 @@ export default function DocumentsSection() {
 
   const handleDownload = (content: string, filename: string) => {
     const element = document.createElement("a");
-    const file = new Blob([content], { type: "text/plain" });
+    const file = new Blob([content], { type: "text/plain;charset=utf-8" });
     element.href = URL.createObjectURL(file);
     element.download = filename;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+  };
+
+  const handlePrint = (content: string, title: string) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: 'Times New Roman', serif; padding: 40px; color: #111; line-height: 1.6; font-size: 14px; }
+            h1, h2, h3 { text-transform: uppercase; color: #000; border-bottom: 2px solid #000; padding-bottom: 4px; }
+            pre { white-space: pre-wrap; font-family: inherit; font-size: 13.5px; }
+            @page { margin: 20mm; }
+          </style>
+        </head>
+        <body>
+          <pre>${content}</pre>
+          <script>window.onload = function() { window.print(); window.close(); }</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   if (analysisMode) {
@@ -179,7 +231,7 @@ export default function DocumentsSection() {
                 Copy Analysis
               </button>
             </div>
-            <pre style={{ color: C.text, fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0 }}>{analysisResult}</pre>
+            <pre style={{ color: C.text, fontSize: 13.5, lineHeight: 1.75, whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0 }}>{analysisResult}</pre>
           </div>
         )}
       </div>
@@ -188,7 +240,7 @@ export default function DocumentsSection() {
 
   if (selected) {
     return (
-      <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px", maxWidth: 800, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px", maxWidth: 840, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
         {/* Back */}
         <button
           onClick={() => {
@@ -218,7 +270,7 @@ export default function DocumentsSection() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20 }}>
           {selected.fields.map((field) => (
             <div key={field}>
-              <label style={{ color: C.textMuted, fontSize: 12, fontWeight: 500, display: "block", marginBottom: 6 }}>{field}</label>
+              <label style={{ color: C.textMuted, fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>{field}</label>
               <input
                 value={formData[field] || ""}
                 onChange={(e) => setFormData((p) => ({ ...p, [field]: e.target.value }))}
@@ -250,46 +302,75 @@ export default function DocumentsSection() {
             cursor: loading ? "not-allowed" : "pointer",
             color: loading ? C.textDim : "#05061A",
             fontSize: 14,
-            fontWeight: 600,
+            fontWeight: 700,
             display: "flex",
             alignItems: "center",
             gap: 8,
             marginBottom: 24,
           }}
         >
-          {loading ? "Drafting Legal Document…" : "✦ Generate with Nyay.ai"}
+          {loading ? "Drafting Official Document…" : "✦ Generate Official Document"}
         </button>
 
-        {/* Generated doc */}
+        {/* Generated doc card */}
         {generated && (
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "20px 24px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <span style={{ color: C.text, fontWeight: 600, fontSize: 14 }}>Generated Document</span>
+          <div
+            style={{
+              background: C.surface,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: "24px 28px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, borderBottom: `1px solid ${C.border}`, paddingBottom: 12 }}>
+              <div>
+                <span style={{ color: C.text, fontWeight: 800, fontSize: 15 }}>Official Drafted Document</span>
+                <div style={{ color: C.textDim, fontSize: 11 }}>Complete Offer Letter & Employment Terms</div>
+              </div>
               <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => handlePrint(generated, selected.title)}
+                  style={{
+                    background: C.goldGlow,
+                    border: `1px solid ${C.gold}40`,
+                    borderRadius: 6,
+                    padding: "6px 12px",
+                    cursor: "pointer",
+                    color: C.gold,
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  🖨️ Print / PDF
+                </button>
                 <button
                   onClick={() => handleDownload(generated, `${selected.title.replace(/\s+/g, "_")}.txt`)}
                   style={{
                     background: C.blueSoft,
                     border: `1px solid ${C.blue}40`,
                     borderRadius: 6,
-                    padding: "5px 12px",
+                    padding: "6px 12px",
                     cursor: "pointer",
                     color: C.blue,
                     fontSize: 12,
                     fontWeight: 600,
                   }}
                 >
-                  📥 Download File
+                  📥 Download TXT
                 </button>
                 <button
-                  onClick={() => navigator.clipboard.writeText(generated)}
+                  onClick={() => {
+                    navigator.clipboard.writeText(generated);
+                    alert("📋 Document copied to clipboard!");
+                  }}
                   style={{
-                    background: C.goldGlow,
-                    border: `1px solid ${C.gold}30`,
+                    background: C.surfaceHov,
+                    border: `1px solid ${C.border}`,
                     borderRadius: 6,
-                    padding: "5px 12px",
+                    padding: "6px 12px",
                     cursor: "pointer",
-                    color: C.gold,
+                    color: C.text,
                     fontSize: 12,
                     fontWeight: 600,
                   }}
@@ -298,7 +379,22 @@ export default function DocumentsSection() {
                 </button>
               </div>
             </div>
-            <pre style={{ color: C.text, fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0 }}>{generated}</pre>
+            <pre
+              style={{
+                color: C.text,
+                fontSize: 13.5,
+                lineHeight: 1.75,
+                whiteSpace: "pre-wrap",
+                fontFamily: "Georgia, serif",
+                margin: 0,
+                background: C.panel,
+                padding: "20px 22px",
+                borderRadius: 10,
+                border: `1px solid ${C.border}`,
+              }}
+            >
+              {generated}
+            </pre>
           </div>
         )}
       </div>
