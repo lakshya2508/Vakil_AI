@@ -26,6 +26,7 @@ export const Icons = {
   shield:       "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
   zap:          "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
   logout:       "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+  trash:        "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
 } as const;
 
 export type IconName = keyof typeof Icons;

@@ -25,6 +25,14 @@ export interface ChatHistory {
   active?: boolean;
 }
 
+export interface ChatSession {
+  id:       number;
+  title:    string;
+  date:     string;
+  messages: Message[];
+  model:    AIModel;
+}
+
 // ── Quick prompt ───────────────────────────────────────
 export interface QuickPrompt {
   icon:  string;

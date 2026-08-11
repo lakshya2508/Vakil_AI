@@ -1,18 +1,39 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Message, AIModel, ChatTab, Attachment, Client, CalEvent, Invoice, Matter, InvoiceStatus, MatterStatus } from "@/types";
-import { CLIENTS, CAL_EVENTS, INVOICES, MATTERS } from "@/constants/data";
+import { Message, AIModel, ChatTab, Attachment, Client, CalEvent, Invoice, Matter, InvoiceStatus, MatterStatus, ChatSession } from "@/types";
+import { CLIENTS, CAL_EVENTS, INVOICES, MATTERS, CHAT_HISTORY } from "@/constants/data";
 
 const MAX_HISTORY_MESSAGES = 30;
+const STORAGE_KEY = "nyay_chat_sessions_v1";
+
+const INITIAL_SESSIONS: ChatSession[] = CHAT_HISTORY.map((h, i) => ({
+  id: h.id,
+  title: h.title,
+  date: h.date,
+  model: i === 0 ? "Nyay Pro" : i === 1 ? "Nyay Research" : "Nyay Standard",
+  messages: [
+    {
+      id: Date.now() - 1000,
+      role: "user",
+      content: h.title,
+    },
+    {
+      id: Date.now(),
+      role: "assistant",
+      content: `I. JUDICIAL BENCH OPINION\n\nRegarding "${h.title}":\n1. Legal Precedent & Analysis: The primary legal framework governing this matter falls under the Bharatiya Nyaya Sanhita, 2023 (BNS) and Constitutional provisions.\n2. Key Findings: Proceedings must adhere strictly to statutory limitation periods and natural justice principles.\n\nII. ADVOCATE ACTIONABLE RECOMMENDATIONS\n- Obtain certified copies of all judicial orders.\n- Serve statutory notice within 30 days of cause of action.`,
+      model: i === 0 ? "Nyay Pro" : i === 1 ? "Nyay Research" : "Nyay Standard",
+    },
+  ],
+}));
 
 export function useChat() {
-  // Chat state
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [activeChat, setActiveChatState] = useState<number>(1);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
-  const [activeChat, setActiveChat] = useState<number>(1);
   const [activeNav, setActiveNav] = useState("chat");
   const [activeTab, setActiveTab] = useState<ChatTab>("legal-chat");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -37,6 +58,40 @@ export function useChat() {
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Load chat sessions from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as ChatSession[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setChatSessions(parsed);
+          setActiveChatState(parsed[0].id);
+          setMessages(parsed[0].messages || []);
+          setShowWelcome(parsed[0].messages.length === 0);
+          if (parsed[0].model) setSelectedModel(parsed[0].model);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load chat history from localStorage", e);
+    }
+    // Fallback initial sessions
+    setChatSessions(INITIAL_SESSIONS);
+    setActiveChatState(INITIAL_SESSIONS[0].id);
+    setMessages(INITIAL_SESSIONS[0].messages);
+    setShowWelcome(false);
+  }, []);
+
+  // Save chat sessions to localStorage on changes
+  const saveSessionsToStorage = useCallback((sessions: ChatSession[]) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    } catch (e) {
+      console.warn("Failed to save chat sessions to localStorage", e);
+    }
+  }, []);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, attachments]);
@@ -57,13 +112,68 @@ export function useChat() {
     };
   }, [isRecording]);
 
+  // Select a chat session from recent history
+  const selectChat = useCallback((id: number) => {
+    setActiveChatState(id);
+    setChatSessions((prev) => {
+      const target = prev.find((s) => s.id === id);
+      if (target) {
+        setMessages(target.messages || []);
+        setShowWelcome((target.messages || []).length === 0);
+        if (target.model) setSelectedModel(target.model);
+      }
+      return prev;
+    });
+    setActiveNav("chat");
+    setActiveTab("legal-chat");
+  }, []);
+
+  // Start a brand new chat session
   const startNewChat = useCallback(() => {
+    const newId = Date.now();
+    const newSession: ChatSession = {
+      id: newId,
+      title: "New Legal Inquiry",
+      date: "Just now",
+      messages: [],
+      model: selectedModel,
+    };
+
+    setChatSessions((prev) => {
+      const updated = [newSession, ...prev];
+      saveSessionsToStorage(updated);
+      return updated;
+    });
+
+    setActiveChatState(newId);
     setMessages([]);
     setShowWelcome(true);
     setInput("");
     setAttachments([]);
     setActiveTab("legal-chat");
-  }, []);
+  }, [selectedModel, saveSessionsToStorage]);
+
+  // Delete a chat session
+  const deleteChatSession = useCallback((id: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setChatSessions((prev) => {
+      const updated = prev.filter((s) => s.id !== id);
+      saveSessionsToStorage(updated);
+      if (updated.length > 0) {
+        setActiveChatState(updated[0].id);
+        setMessages(updated[0].messages || []);
+        setShowWelcome((updated[0].messages || []).length === 0);
+      } else {
+        const fresh: ChatSession = { id: Date.now(), title: "New Legal Inquiry", date: "Just now", messages: [], model: "Nyay Pro" };
+        saveSessionsToStorage([fresh]);
+        setActiveChatState(fresh.id);
+        setMessages([]);
+        setShowWelcome(true);
+        return [fresh];
+      }
+      return updated;
+    });
+  }, [saveSessionsToStorage]);
 
   // Attachment handling
   const addFiles = useCallback((files: FileList | File[]) => {
@@ -148,7 +258,7 @@ export function useChat() {
     setIsWebSearch((prev) => !prev);
   }, []);
 
-  // Send message handler with multimodal attachments
+  // Send message handler with automatic persistent session updates
   const sendMessage = useCallback(
     async (text?: string, overrideAttachments?: Attachment[]) => {
       const query = (text ?? input).trim();
@@ -168,7 +278,50 @@ export function useChat() {
         attachments: currentAtts.length > 0 ? currentAtts : undefined,
       };
 
-      setMessages((prev) => [...prev, userMsg]);
+      setMessages((prevMessages) => {
+        const updatedMessages = [...prevMessages, userMsg];
+
+        // Sync with active session in chatSessions state & localStorage
+        setChatSessions((prevSessions) => {
+          const sessionIndex = prevSessions.findIndex((s) => s.id === activeChat);
+          let newSessions: ChatSession[];
+
+          if (sessionIndex >= 0) {
+            const currentSession = prevSessions[sessionIndex];
+            const title =
+              currentSession.title === "New Legal Inquiry" || currentSession.messages.length === 0
+                ? query.substring(0, 42) + (query.length > 42 ? "..." : "")
+                : currentSession.title;
+
+            const updatedSession: ChatSession = {
+              ...currentSession,
+              title: title || "Legal Inquiry",
+              messages: updatedMessages,
+              model: selectedModel,
+            };
+
+            newSessions = [
+              updatedSession,
+              ...prevSessions.filter((_, idx) => idx !== sessionIndex),
+            ];
+          } else {
+            const newSession: ChatSession = {
+              id: activeChat,
+              title: query.substring(0, 42) + (query.length > 42 ? "..." : ""),
+              date: "Just now",
+              messages: updatedMessages,
+              model: selectedModel,
+            };
+            newSessions = [newSession, ...prevSessions];
+          }
+
+          saveSessionsToStorage(newSessions);
+          return newSessions;
+        });
+
+        return updatedMessages;
+      });
+
       setLoading(true);
 
       try {
@@ -197,21 +350,47 @@ export function useChat() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Request failed");
 
-        setMessages((prev) => [
-          ...prev,
-          { id: Date.now() + 1, role: "assistant", content: data.content, model: selectedModel },
-        ]);
+        const assistantMsg: Message = {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: data.content,
+          model: selectedModel,
+        };
+
+        setMessages((prevMessages) => {
+          const finalMessages = [...prevMessages, assistantMsg];
+
+          // Persist assistant response into chat session
+          setChatSessions((prevSessions) => {
+            const sessionIndex = prevSessions.findIndex((s) => s.id === activeChat);
+            if (sessionIndex >= 0) {
+              const updated = [...prevSessions];
+              updated[sessionIndex] = {
+                ...updated[sessionIndex],
+                messages: finalMessages,
+              };
+              saveSessionsToStorage(updated);
+              return updated;
+            }
+            return prevSessions;
+          });
+
+          return finalMessages;
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
-        setMessages((prev) => [
-          ...prev,
-          { id: Date.now() + 1, role: "assistant", content: `⚠️ Error: ${message}. Please try again.`, model: selectedModel },
-        ]);
+        const errorMsg: Message = {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: `⚠️ Error: ${message}. Please try again.`,
+          model: selectedModel,
+        };
+        setMessages((prevMessages) => [...prevMessages, errorMsg]);
       } finally {
         setLoading(false);
       }
     },
-    [input, attachments, loading, messages, isWebSearch, selectedModel]
+    [input, attachments, loading, messages, isWebSearch, selectedModel, activeChat, saveSessionsToStorage]
   );
 
   const changeModel = useCallback((m: AIModel) => {
@@ -266,6 +445,7 @@ export function useChat() {
   }, []);
 
   return {
+    chatSessions,
     messages,
     input,
     loading,
@@ -305,9 +485,9 @@ export function useChat() {
     addMatter,
     updateMatterStatus,
 
-    // Setters
+    // Setters & Actions
     setInput,
-    setActiveChat,
+    selectChat,
     setActiveNav,
     setActiveTab,
     setShowWelcome,
@@ -316,6 +496,7 @@ export function useChat() {
     setSelectedModel: changeModel,
     sendMessage,
     startNewChat,
+    deleteChatSession,
     handleKeyDown,
   };
 }

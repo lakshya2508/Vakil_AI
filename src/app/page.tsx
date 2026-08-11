@@ -53,12 +53,10 @@ export default function Home() {
           chat.setActiveNav(id);
         }}
         activeChat={chat.activeChat}
-        onChatSelect={(id) => {
-          chat.setActiveChat(id);
-          chat.setShowWelcome(false);
-          chat.setActiveNav("chat");
-        }}
+        onChatSelect={chat.selectChat}
         onNewChat={chat.startNewChat}
+        chatSessions={chat.chatSessions}
+        onDeleteChat={chat.deleteChatSession}
       />
 
       {/* ── Main column ─────────────────────────────── */}
